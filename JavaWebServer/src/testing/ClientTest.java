@@ -12,8 +12,8 @@ public class ClientTest {
 
 	@Test
 	public void test() {
-		Server myServer = new Server(80); 
-		Client myClient = new Client();
+		Server myServer = new Server(1024); 
+		//Client myClient = new Client();
 		//myClient.scanHTMLLine("<img src=\"/images/M_images/livemarks.png\" alt=\"feed-image\"  /> <span>RSS Feeds van onze website ontvangen</span></a>");
 		Thread s = new Thread(myServer);
 		//Thread c = new Thread(myClient);
