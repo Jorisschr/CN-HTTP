@@ -123,11 +123,11 @@ public class Handler implements Runnable {
 		try {
 		String[] parsedReq = parseRequest(request);
 		setCommand(parsedReq[0]);
-		System.out.println("Command parsed: " + parsedReq[0]);
-		setLocation(parsedReq[1]);
-		System.out.println("Location parsed: " + parsedReq[1]);
+		//System.out.println("Command parsed: " + parsedReq[0]);
 		setVersion(parsedReq[2]);
-		System.out.println("Version parsed: " + parsedReq[2]);
+		//System.out.println("Version parsed: " + parsedReq[2]);
+		setLocation(parsedReq[1]);
+		//System.out.println("Location parsed: " + parsedReq[1]);
 		receiveAddedInput();
 		respond();
 		} catch (Exception e) {}
@@ -172,7 +172,7 @@ public class Handler implements Runnable {
 	 */
 	private String getContentLength() {
 		// TODO lengte uit file halen = opzoeken
-		return "Content-Length: 11";
+		return null;
 	}
 
 	/**
@@ -298,11 +298,12 @@ public class Handler implements Runnable {
 	 * 			the file to be fetched by this handler.
 	 */
 	private void setLocation(String string) {
+		//TODO: support more codes.
 		if (!isValidLocation(string)) {
-			setStatusCode("HTTP/1.1 404 Not Found\n");
+			setStatusCode(getVersion() + " 404 Not Found\n");
 			this.location = null;
 		} else {
-			setStatusCode("HTTP/1.1 200 OK\n");
+			setStatusCode(getVersion() + " 200 OK\n");
 			this.location = string;
 		}
 
