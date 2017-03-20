@@ -18,6 +18,8 @@ public class Handler implements Runnable {
 	// The location of the file to be retrieved
 	private String location;
 	
+	private File file;
+	
 	// The command given by the request
 	private String command;
 	
@@ -127,11 +129,23 @@ public class Handler implements Runnable {
 		setVersion(parsedReq[2]);
 		//System.out.println("Version parsed: " + parsedReq[2]);
 		setLocation(parsedReq[1]);
+		setFile(getLocation());
 		//System.out.println("Location parsed: " + parsedReq[1]);
 		receiveAddedInput();
 		respond();
 		} catch (Exception e) {}
 		
+	}
+
+	private void setFile(String location) {
+		// TODO Auto-generated method stub
+		if (location != null) {
+		this.file = new File(location);
+		}
+	}
+	
+	private File getFile() {
+		 return this.file;
 	}
 
 	/**
@@ -146,7 +160,11 @@ public class Handler implements Runnable {
 			getOTC().writeByte(10);
 			getOTC().writeByte(13);
 			getOTC().writeByte(10);
-			getOTC().writeChars("<!doctype html><html><head><title>Example Domain</title><meta charset=\"utf-8\" /><meta http-equiv=\"Content-type\" content=\"text/html; charset=utf-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" /><style type=\"text/css\">body {background-color: #f0f0f2;margin: 0;padding: 0;font-family: \"Open Sans\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;}div {width: 600px;margin: 5em auto;padding: 50px;background-color: #fff;border-radius: 1em;}a:link, a:visited {color: #38488f;text-decoration: none;}@media (max-width: 700px) {body {background-color: #fff;}div {width: auto;margin: 0 auto;border-radius: 0;padding: 1em;}}</style></head><body><div><h1>Example Domain</h1><p>This domain is established to be used for illustrative examples in documents. You may use this domain in examples without prior coordination or asking for permission.</p><p><a href=\"http://www.iana.org/domains/example\">More information...</a></p></div></body></html>\r\n\r\n");
+			FileInputStream fis = new FileInputStream(getFile());
+			byte[] b = new byte[(int) getFile().length()];
+			fis.read(b);
+			getOTC().write(b);
+			//getOTC().writeChars("<!doctype html><html><head><title>Example Domain</title><meta charset=\"utf-8\" /><meta http-equiv=\"Content-type\" content=\"text/html; charset=utf-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" /><style type=\"text/css\">body {background-color: #f0f0f2;margin: 0;padding: 0;font-family: \"Open Sans\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;}div {width: 600px;margin: 5em auto;padding: 50px;background-color: #fff;border-radius: 1em;}a:link, a:visited {color: #38488f;text-decoration: none;}@media (max-width: 700px) {body {background-color: #fff;}div {width: auto;margin: 0 auto;border-radius: 0;padding: 1em;}}</style></head><body><div><h1>Example Domain</h1><p>This domain is established to be used for illustrative examples in documents. You may use this domain in examples without prior coordination or asking for permission.</p><p><a href=\"http://www.iana.org/domains/example\">More information...</a></p></div></body></html>\r\n\r\n");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -161,9 +179,11 @@ public class Handler implements Runnable {
 	 */
 	private String getHeaders() {
 		//TODO: add more headers.
-		String headers = getStatusCode() + getDate() + getContentType() + getContentLength();
+		String headers = getStatusCode() + getDate() + getContentType();
+		if (getContentLength() != null) {
+			headers += getContentLength();
+		}
 		return headers;
-				
 	}
 	
 	/**
@@ -171,8 +191,9 @@ public class Handler implements Runnable {
 	 * @return	A String containing the Content-Length header
 	 */
 	private String getContentLength() {
-		// TODO lengte uit file halen = opzoeken
-		return null;
+		if (getFile() != null) {
+			return "Content-Length: " + getFile().length();
+		} else return null;
 	}
 
 	/**
@@ -182,7 +203,7 @@ public class Handler implements Runnable {
 	private String getContentType() {
 		//TODO: jsoup om door file te gaan? / iets bijhouden dat elke file labelt
 		// default
-		return "Content-Type: text/html; charset=UTF-8";
+		return "Content-Type: text/html\n";
 	}
 
 	/**
@@ -221,25 +242,24 @@ public class Handler implements Runnable {
 	 * 			A string containing the location to check.
 	 * @return 	Returns true if and only if the given location 
 	 * 			is valid. False otherwise.
+	 * @throws IOException 
 	 */
-	private boolean isValidLocation(String loc) {
-		// TODO Check whether this location is present
-		//try {
-			//InputStream os;
-		if (loc.contains("/")) {
+	public boolean isValidLocation(String loc) {
+		InputStream is;
+		if (loc.equals("/")) {
 			return true;
 		}
-			//if ((os = new FileInputStream("src/savedHTMLFiles/" + location.substring(10))) != null) {
-			//	os.close();
-			//	return true;
-			//}
-			
-		//} catch (FileNotFoundException e) {
-		//	System.out.println("No such location present.");
-		//} catch (IOException e) {
-		//	System.out.println("IOException thrown");
-		//}
-		System.out.println("Invalid Location");
+		
+		else if (loc.startsWith("/")){
+			loc = "src/ServerPages/" + loc.substring(1);
+		}
+		try {
+			if ((is = new FileInputStream(loc)) != null) {
+				is.close();
+				return true;
+			}
+		} catch (IOException e) {
+		}
 		return false;
 	}
 
@@ -299,13 +319,23 @@ public class Handler implements Runnable {
 	 */
 	private void setLocation(String string) {
 		//TODO: support more codes.
-		if (!isValidLocation(string)) {
-			setStatusCode(getVersion() + " 404 Not Found\n");
-			this.location = null;
-		} else {
-			setStatusCode(getVersion() + " 200 OK\n");
-			this.location = string;
+		try {
+			if (!getIFC().readLine().startsWith("Host:")){
+				setStatusCode(getVersion() + " 400 Bad Request\n");
+				this.location = null;
+			}
+			else if (!isValidLocation(string)) {
+				setStatusCode(getVersion() + " 404 Not Found\n");
+				this.location = null;
+			} else {
+				setStatusCode(getVersion() + " 200 OK\n");
+				this.location = "src/ServerPages/" + string.split("/")[1];
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
+		
 
 	}
 	

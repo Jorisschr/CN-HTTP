@@ -132,7 +132,7 @@ public class Client implements Runnable{
 			handlePostCommand();
 			break;
 		}
-		//clientSocket.close();
+		clientSocket.close();
 	}
 	
 	/**
@@ -225,7 +225,9 @@ public class Client implements Runnable{
 	}
 	
 	private void handleGetImageCommand(InputStream is) throws Exception {
-		OutputStream os = new FileOutputStream("src/savedHTMLFiles/" + getPath().replace("/", "_"));
+		File file = new File("src/savedHTMLFiles/" + getPath());
+		file.mkdirs();
+		OutputStream os = new FileOutputStream("src/savedHTMLFiles/" + getPath());
 		byte[] image = new byte[getContentLength()];
 		int length;
 		while ((length = is.read(image)) != -1) {
@@ -236,7 +238,7 @@ public class Client implements Runnable{
 		//System.out.println(image);
 
 		//os.write(image);
-		//os.close();
+		os.close();
 		//is.close();
 	}
 	
@@ -392,10 +394,11 @@ public class Client implements Runnable{
 			System.out.println("Client: image detected");
 			System.out.println(getPath(line.split("\"")[1]));
 			this.foundImageLocations.add(getPath(line.split("\"")[1]));
-			String newLoc = getPath(line.split("\"")[1]).replaceAll("/","_");
-			System.out.println(newLoc);
-			System.out.println("<img src=\"" + newLoc + line.substring(line.indexOf('"',line.indexOf('"') + 1)));
-			return "<img src=\"" + newLoc + line.substring(line.indexOf('"',line.indexOf('"') + 1));
+			//String newLoc = getPath(line.split("\"")[1]);
+			//System.out.println(newLoc);
+			//System.out.println(line.split(newLoc)[0] + newLoc + line.split(newLoc)[1]);
+			//System.out.println("<img src=\"" + newLoc + line.substring(line.indexOf('"',line.indexOf('"') + 1)));
+			//return "<img src=\"" + newLoc + line.substring(line.indexOf('"',line.indexOf('"') + 1));
 		}
 		return line;
 	}
