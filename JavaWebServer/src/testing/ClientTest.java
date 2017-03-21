@@ -16,16 +16,16 @@ public class ClientTest {
 
 	@Test
 	public void test() throws UnknownHostException, IOException {
-		Server myServer = new Server(1024); 
+		//Server myServer = new Server(80); 
 		//Handler myHandler = new Handler(new Socket("localhost", 1024));
 		//myHandler.isValidLocation("src/ServerPages/www.example.com.html");
-		//Client myClient = new Client();
+		Client myClient = new Client();
 		//myClient.scanHTMLLine("<img src=\"/images/M_images/livemarks.png\" alt=\"feed-image\"  /> <span>RSS Feeds van onze website ontvangen</span></a>");
-		Thread s = new Thread(myServer);
+		//Thread s = new Thread(myServer);
 		//Thread c = new Thread(myClient);
-		s.start();
-		while (true) {
-		}
+		//s.start();
+		//while (true) {
+		//}
 		//try {
 		//	myClient.handleUserInput("HTTPClient GET localhost/www.google.be.html 1024");
 		//} catch (Exception e) {
@@ -38,9 +38,9 @@ public class ClientTest {
 		//} catch (Exception e1) {
 
 		//}
-		//try {
+		try {
 			//myClient.handleUserInput("HTTPClient GET localhost 80");
-		//	myClient.handleUserInput("HTTPClient GET http://www.kttcnijlen-bevel.be/okjlhhbn 80");
-		//} catch (Exception e) {}
+			myClient.handleUserInput("HTTPClient GET www.tldp.org 80");
+		} catch (Exception e) {}
 	}
 }

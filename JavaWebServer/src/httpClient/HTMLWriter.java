@@ -27,8 +27,22 @@ public class HTMLWriter {
 	}
 
 	private void setPWriter(String fileName) {
+		System.out.println(fileName);
+
 		try {
-			this.pWriter = new PrintWriter(fileName, "UTF-8");
+			File file;
+			if (fileName.lastIndexOf("/") == -1 || fileName.lastIndexOf("/") == fileName.length() - 1) {
+				fileName += "/index.html";
+			}
+			file = new File("src/savedHTMLFiles/" + fileName.substring(0, fileName.lastIndexOf("/")));
+			file.mkdirs();
+		} catch (Exception e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
+		try {
+			this.pWriter = new PrintWriter("src/savedHTMLFiles/" + fileName, "UTF-8");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -59,20 +73,18 @@ public class HTMLWriter {
 	}
 	
 	private String getFileName() {
-		return "src/savedHTMLFiles/" + this.fileName + ".html";
+		return this.fileName;
 	}
 	
 	public void write(String line) {
 		if (isWriting()) {
 			try {
 				getWriter().write(line);
-				getWriter().newLine();
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
-	}
-	
+	}	
 	public void close() {
 		try {
 			getWriter().close();
