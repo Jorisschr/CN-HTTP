@@ -4,13 +4,14 @@ import java.net.*;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 import java.util.TimeZone;
 
 
 public class Handler implements Runnable {
 	Socket socket;
 	BufferedReader inFromClient;
-	DataOutputStream outToClient;
+	OutputStream outToClient;
 	
 	// The version of HTTP being handled by this handler
 	private String version;
@@ -25,6 +26,7 @@ public class Handler implements Runnable {
 	
 	// The statuscode being returned to the client
 	private String statusCode;
+	private int contentLength;
 	
 	// The array of supported commands with which the command will be compared.
 	private static String[] commands = new String[] {"HEAD", "GET", "PUT", "POST"};
@@ -80,7 +82,7 @@ public class Handler implements Runnable {
 	 * @return	A DataOutputStream that writes output 
 	 * 			back to the client.
 	 */
-	private DataOutputStream getOTC() {
+	private OutputStream getOTC() {
 		return this.outToClient;
 	}
 	
@@ -101,16 +103,9 @@ public class Handler implements Runnable {
 	public void run()
 	{
 		try { 
+			while (true) {
 			handleRequest(receiveClientInput());
-			/*String clientSentence = getIFC().readLine();
-			System.out.println("Received: " + clientSentence);
-			String capsSentence = clientSentence.toUpperCase() + '\n';
-			getOTC().writeBytes("HTTP/1.1 200 OK\n");
-			//getOTC().writeBytes("Content-Length: 1318\n");
-			getOTC().writeBytes("Content-Type: text/html\r\n\r\n");
-
-			getOTC().writeBytes("<!doctype html><html><head><title>Example Domain</title><meta charset=\"utf-8\" /><meta http-equiv=\"Content-type\" content=\"text/html; charset=utf-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" /><style type=\"text/css\">body {background-color: #f0f0f2;margin: 0;padding: 0;font-family: \"Open Sans\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;}div {width: 600px;margin: 5em auto;padding: 50px;background-color: #fff;border-radius: 1em;}a:link, a:visited {color: #38488f;text-decoration: none;}@media (max-width: 700px) {body {background-color: #fff;}div {width: auto;margin: 0 auto;border-radius: 0;padding: 1em;}}</style></head><body><div><h1>Example Domain</h1><p>This domain is established to be used for illustrative examples in documents. You may use this domain in examples without prior coordination or asking for permission.</p><p><a href=\"http://www.iana.org/domains/example\">More information...</a></p></div></body></html>");
-			getSocket().close();*/
+			}
 		} catch (Exception e){}
 	}
 	
@@ -133,6 +128,7 @@ public class Handler implements Runnable {
 		//System.out.println("Location parsed: " + parsedReq[1]);
 		receiveAddedInput();
 		respond();
+		
 		} catch (Exception e) {}
 		
 	}
@@ -154,17 +150,23 @@ public class Handler implements Runnable {
 	 */
 	private void respond() {
 		// TODO Auto-generated method stub
+		
 		try {
-			getOTC().writeBytes(getHeaders());
-			getOTC().writeByte(13);
-			getOTC().writeByte(10);
-			getOTC().writeByte(13);
-			getOTC().writeByte(10);
-			FileInputStream fis = new FileInputStream(getFile());
-			byte[] b = new byte[(int) getFile().length()];
-			fis.read(b);
-			getOTC().write(b);
-			//getOTC().writeChars("<!doctype html><html><head><title>Example Domain</title><meta charset=\"utf-8\" /><meta http-equiv=\"Content-type\" content=\"text/html; charset=utf-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" /><style type=\"text/css\">body {background-color: #f0f0f2;margin: 0;padding: 0;font-family: \"Open Sans\", \"Helvetica Neue\", Helvetica, Arial, sans-serif;}div {width: 600px;margin: 5em auto;padding: 50px;background-color: #fff;border-radius: 1em;}a:link, a:visited {color: #38488f;text-decoration: none;}@media (max-width: 700px) {body {background-color: #fff;}div {width: auto;margin: 0 auto;border-radius: 0;padding: 1em;}}</style></head><body><div><h1>Example Domain</h1><p>This domain is established to be used for illustrative examples in documents. You may use this domain in examples without prior coordination or asking for permission.</p><p><a href=\"http://www.iana.org/domains/example\">More information...</a></p></div></body></html>\r\n\r\n");
+			if (getCommand().equals("PUT") || getCommand().equals("POST")) {
+				getOTC().write(getHeaders().getBytes());
+				return;
+			}
+			getOTC().write(getHeaders().getBytes());
+			//System.out.println("Headers " + getHeaders());
+			getOTC().write("\r\n\r\n".getBytes());
+			//System.out.println(getFile());
+			if (!getStatusCode().equals(getVersion() + " 404 Not Found\n")) {
+				FileInputStream fis = new FileInputStream(getFile());
+				byte[] b = new byte[(int) getFile().length()];
+				fis.read(b);
+				getOTC().write(b);
+				getOTC().write("\r\n\r\n".getBytes());
+			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -179,6 +181,10 @@ public class Handler implements Runnable {
 	 */
 	private String getHeaders() {
 		//TODO: add more headers.
+		if (getStatusCode().equals(getVersion() + " 404 Not Found\n")) {
+			return getStatusCode() + getDate() + "Content-Type: text/html\n" + 
+					"Content-Length: 0";
+		}
 		String headers = getStatusCode() + getDate() + getContentType();
 		if (getContentLength() != null) {
 			headers += getContentLength();
@@ -192,6 +198,7 @@ public class Handler implements Runnable {
 	 */
 	private String getContentLength() {
 		if (getFile() != null) {
+			//System.out.println("Content-Length: " + getFile().length());
 			return "Content-Length: " + getFile().length();
 		} else return null;
 	}
@@ -201,9 +208,11 @@ public class Handler implements Runnable {
 	 * @return	A String containing the Content-Type header
 	 */
 	private String getContentType() {
-		//TODO: jsoup om door file te gaan? / iets bijhouden dat elke file labelt
-		// default
-		return "Content-Type: text/html\n";
+		if (getFile().getName().endsWith("html")) {
+			return "Content-Type: text/html\n";
+		}
+		System.out.println("Content-Type: image/" + getFile().getName().substring(getFile().getName().lastIndexOf(".") + 1));
+		return "Content-Type: image/" + getFile().getName().substring(getFile().getName().lastIndexOf(".") + 1) + "\n";
 	}
 
 	/**
@@ -211,11 +220,10 @@ public class Handler implements Runnable {
 	 * @return	A String containing the Date header
 	 */
 	private String getDate() {
-		// TODO juiste format.
 		final Date currentTime = new Date();
-		final SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM d, yyyy hh:mm:ss z");
+		final SimpleDateFormat sdf = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss zzz", Locale.ENGLISH);
 		sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
-		return "GMT time: " + sdf.format(currentTime) + "\n";
+		return "Date: " + sdf.format(currentTime) + "\n";
 	}
 	
 	/**
@@ -246,12 +254,15 @@ public class Handler implements Runnable {
 	 */
 	public boolean isValidLocation(String loc) {
 		InputStream is;
+		if (getCommand().equals("POST") || (getCommand().equals("PUT"))) {
+			return true; 
+		}
 		if (loc.equals("/")) {
 			return true;
 		}
 		
 		else if (loc.startsWith("/")){
-			loc = "src/ServerPages/" + loc.substring(1);
+			loc = "src/savedHTMLFiles/" + loc.substring(1);
 		}
 		try {
 			if ((is = new FileInputStream(loc)) != null) {
@@ -266,9 +277,12 @@ public class Handler implements Runnable {
 	/**
 	 * Receive extra input given by the client. 
 	 * This is only necessary for PUT and POST requests.
+	 * @throws IOException 
 	 */
-	private void receiveAddedInput() {
+	private void receiveAddedInput() throws IOException {
 		// TODO Auto-generated method stub
+		//if (!getIFC().readLine().startsWith("Host:"))
+		//	setStatusCode(getVersion() + " 400 Bad Request\n");
 		switch (getCommand()) {
 			case "GET":
 				break;
@@ -276,12 +290,37 @@ public class Handler implements Runnable {
 				break;
 			case "POST":
 				//TODO: set string here
+				File file = new File(getLocation().substring(0, getLocation().lastIndexOf("/")));
+				file.mkdirs();
+				OutputStream os = new FileOutputStream(getLocation());
+				String clientInput = "";
+				while (!clientInput.endsWith("\r\n\r\n")) {
+					clientInput += receiveClientInput();
+					os.write(clientInput.getBytes());
+					System.out.println("ESCAPED WHILE");
+				}
+
+				os.write(clientInput.getBytes());
+				os.close();
 				break;
 			case "PUT":
 				//TODO: set string here
+				File file1 = getFile();
+				file1.mkdirs();
+				OutputStream os1 = new FileOutputStream(getFile());
+				String clientInput1 = "";
+				while (!(clientInput1 = getIFC().readLine()).endsWith("\r\n\r\n")) {
+				}
+				os1.write(clientInput1.getBytes());
+				os1.close();
 				break;
 		}
 				
+	}
+	
+	private void setContentLength(int parseInt) {
+		// TODO Auto-generated method stub
+		this.contentLength = parseInt;
 	}
 
 	/**
@@ -319,8 +358,10 @@ public class Handler implements Runnable {
 	 */
 	private void setLocation(String string) {
 		//TODO: support more codes.
+		System.out.println("SERVER: Location: " + string);
 		try {
 			if (!getIFC().readLine().startsWith("Host:")){
+
 				setStatusCode(getVersion() + " 400 Bad Request\n");
 				this.location = null;
 			}
@@ -329,7 +370,7 @@ public class Handler implements Runnable {
 				this.location = null;
 			} else {
 				setStatusCode(getVersion() + " 200 OK\n");
-				this.location = "src/ServerPages/" + string.split("/")[1];
+				this.location = "src/savedHTMLFiles/" + string.substring(1);
 			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block

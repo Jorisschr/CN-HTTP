@@ -3,6 +3,8 @@ import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 
 public class Client implements Runnable{
 	private static String[] commands = new String[] {"HEAD", "GET", "PUT", "POST"};
@@ -17,11 +19,20 @@ public class Client implements Runnable{
 	private String path;
 	private int port;
 	
+	private LinkedHashSet<String> foundImages = new LinkedHashSet<String>();
 	private ArrayList<String> foundImageLocations = new ArrayList<String>();
 
 	private int contentLength;
 
 	private Socket socket;
+
+	private byte[] file;
+
+	private byte[] headers;
+
+	private String userFile;
+
+	private String userHeaders;
 	
 	public Client() {
 		this.inFromUser = new BufferedReader(new InputStreamReader(System.in));
@@ -36,14 +47,14 @@ public class Client implements Runnable{
 		return this.writer;
 	}
 	
-	private ArrayList<String> getImageLocs() {
-		return this.foundImageLocations;
+	private LinkedHashSet<String> getImageLocs() {
+		return this.foundImages;
 	}
 
 	/**
 	 * Check if the given input is correct and 
 	 * execute the command if it is.
-	 * If not correct, new input while be asked for.
+	 * If not correct, new input will be asked for.
 	 * @param 	s
 	 * 			A String containing the input.
 	 * @throws 	Exception
@@ -55,7 +66,20 @@ public class Client implements Runnable{
 		}
 		setHost(input[2]);
 		setPath(input[2]);
-
+		if (input[1].equals("PUT") || input[1].equals("POST")) {
+			String inputString = "";
+			System.out.println("Client: Please enter headers.");
+			while (!inputString.endsWith("\r\n\r\n")) {
+				inputString += new String(new BufferedReader(new InputStreamReader(System.in)).readLine()) + "\r\n";
+			}
+			setUserHeaders(inputString);
+			inputString = "";
+			System.out.println("Client: Please enter body to " + input[1].toLowerCase());
+			while (!inputString.endsWith("\r\n\r\n")) {
+				inputString += new String(new BufferedReader(new InputStreamReader(System.in)).readLine()) + "\r\n";
+			}
+			setUserFile(inputString);
+		}
 		try {
 			setPort(Integer.parseInt(input[3]));
 			setSocket(new Socket(getHost(), getPort()));
@@ -142,111 +166,109 @@ public class Client implements Runnable{
 		DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
 		InputStream is = clientSocket.getInputStream();
 		//BufferedInputStream bis = new BufferedInputStream(is);
-		InputStreamReader inFromServer = new InputStreamReader(is, "UTF-8");
+		//InputStreamReader inFromServer = new InputStreamReader(is, "UTF-8");
+
 		outToServer.writeBytes(input[1] + " " + getPath() + " HTTP/1.1\r\n");
 		outToServer.writeBytes("Host: " + getHost() + "\r\n\r\n");
-		switch (input[1]) {
-		case "GET":
-			String newLoc;
-			readFromServer(is);
-			//if ((newLoc = checkStatusCode(br)) == null) {
-				
-			//	String type = getContentType();
-			//	if (type.equals("text/html")) handleGetHTMLCommand(inFromServer);
-			//	else if (type.equals("image/png") || type.startsWith("image")) handleGetImageCommand(is);
-			//} else {
-			//	System.out.println("Client: Redirecting...");
-			//	redirectRequest(newLoc, input);
-			//}
-			break;
-		case "HEAD": 
-			//handleHeadCommand(inFromServer);
-			break;
-		case "PUT": 
-			//handlePutCommand(inFromServer);
-			break;
-		case "POST":
-			handlePostCommand();
-			break;
-		}
+		readFromServer(is);
+		BufferedReader br = getBR(getHeaders());
+		String newLoc = checkStatusCode(br);
+		checkHeaders(br);
+
+			switch (input[1]) {
+			case "GET":
+				if (newLoc != null) {
+					System.out.println("Client: Redirecting...");
+					redirectRequest(newLoc, input);
+				} else {
+				byte[] completeResponse = readFullResponse(is, getFile());
+				String type = getContentType();
+				if (type.equals("text/html")) handleGetHTMLCommand(completeResponse);
+				else if (type.startsWith("image")) handleGetImageCommand(completeResponse);
+				}
+				break;
+			case "HEAD": 
+				break;
+			case "PUT": 
+				outToServer.writeBytes(getUserHeaders());
+				outToServer.writeBytes(getUserFile());
+				break;
+			case "POST":
+				outToServer.writeBytes(getUserHeaders());
+				outToServer.writeBytes(getUserFile());
+				break;
+			}
 		//clientSocket.close();
 	}
 	
+	private String getUserFile() {
+		// TODO Auto-generated method stub
+		return this.userFile;
+	}
+
+	private String getUserHeaders() {
+		// TODO Auto-generated method stub
+		return this.userHeaders;
+	}
+
 	private void readFromServer(InputStream is) throws IOException {
 		byte[] bytes = new byte[1024];
 		byte[] headers = new byte[1];
 		byte[] file = new byte[1];
+		try {
+			Thread.sleep(100);
+		} catch (InterruptedException e) {
+			//TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		int count = is.read(bytes);
 
 		boolean end = false;
 		int i = 0;
 		while (!end) {
 			if (bytes[i] == 13 && bytes[i + 1] == 10 && bytes[i + 2] == 13 && bytes[i+3] == 10) {
-				System.out.println("Line 161: " + i);
+				//System.out.println("index " + i);
 				headers = Arrays.copyOfRange(bytes, 0, i + 4);
 				file = Arrays.copyOfRange(bytes, i + 4, count);
 				end = true;
 			}
 			i++;
 		}
-		String string = new String(headers, "UTF-8");
-		System.out.println("Server: " + string);
-		BufferedReader br = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(headers)));
-		System.out.println("br created.");
-		//checkStatusCode(br);
-		//checkHeaders(br);
-
-		try {
-			String newLoc;
-			if ((newLoc = checkStatusCode(br)) == null) {
-				checkHeaders(br);
-				byte[] completeResponse = readFullResponse(is, file);
-				String type = getContentType();
-			if (type.equals("text/html")) handleGetHTMLCommand(completeResponse);
-			else if (type.equals("image/png") || type.startsWith("image")) handleGetImageCommand(completeResponse);
-		} else {
-			System.out.println("Client: Redirecting...");
-			//redirectRequest(newLoc, input);
-		}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		System.out.println(string);
+		setHeaders(headers);
+		setFile(file);
 	}
 	
+	private void setFile(byte[] file) {
+		// TODO Auto-generated method stub
+		this.file = file;
+	}
+	
+	private byte[] getFile() {
+		return this.file;
+	}
+
+	private void setHeaders(byte[] headers) {
+		// TODO Auto-generated method stub
+		this.headers = headers;
+	}
+	
+	private byte[] getHeaders() {
+		return this.headers;
+	}
+	
+	private BufferedReader getBR(byte[] headers) {
+		return new BufferedReader(new InputStreamReader(new ByteArrayInputStream(headers)));
+	}
+
 	private byte[] readFullResponse(InputStream is, byte[] file) throws IOException {
 		// TODO Auto-generated method stub
 		byte[] response = new byte[getContentLength()];
 		response = Arrays.copyOf(file, getContentLength());
 		int count = file.length;
-		System.out.println("Count, content length: " + count + " " + getContentLength());
 		while (count != getContentLength()) {
 			count += is.read(response, count, getContentLength() - count);
 		}
 		return response;
-	}
-
-	/**
-	 * Used for retrieving information from headers.
-	 * @param inFromServer
-	 * @throws Exception
-	 */
-	private void checkHeaders(BufferedReader br) throws Exception {
-		String response;
-		while (!(response = br.readLine()).equals("")) {
-			if (response.startsWith("Content-Type:")) {
-				setContentType(response.split(" ")[1].split(";")[0]);
-			}
-			if (response.startsWith("Transfer-Encoding: chunked")) {
-				setChunked(true);
-			}
-			if (response.startsWith("Content-Length:")) {
-				setContentLength(Integer.parseInt(response.split(" ")[1]));
-			}
-			System.out.println("Server: " + response);
-		}
-		System.out.println("Server: " + response);
-		System.out.println("Headers checked.");
 	}
 
 	private void setContentLength(int parseInt) {
@@ -254,6 +276,9 @@ public class Client implements Runnable{
 	}
 	
 	private int getContentLength() {
+		if (this.contentLength <= 0) {
+			return file.length;
+		}
 		return this.contentLength;
 	}
 
@@ -299,78 +324,31 @@ public class Client implements Runnable{
 		setWriter(getHost() + getPath());
 		getWriter().setWriting(true);
 		getWriter().write(new String(bytes, "UTF-8"));
+		getWriter().close();
 		System.out.println("Server: " + new String(bytes, "UTF-8"));
-		BufferedReader br = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(bytes)));
-		// Find start of reading..
-		//int count = bytes.length;
-		//int curCount;
-		//System.out.println("Found length: " + getContentLength());
-
-		//String string = new String(bytes, "UTF-8");
-		//char[] doneReading = string.toCharArray();
+		BufferedReader br = getBR(bytes);
 		
-		//char[] c = Arrays.copyOf(bytes, getContentLength());
-		//while (count != getContentLength()) {
-			//System.out.println("Client: still reading.");
-		//	curCount = inFromServer.read(c, count, getContentLength() - count);
-			//System.out.println(curCount);
-			//System.out.println("Server: " + String.valueOf(c));
-		//	count += curCount;
-			//System.out.println(count);
-		//}
-		//getWriter().write(String.valueOf(c));
-		//System.out.println("Server: " + String.valueOf(c));
-		//System.out.println("Client: done reading.");
 		while(!(response = br.readLine()).endsWith("</HTML>") && !response.endsWith("</html>")) {
 			scanHTMLLine(response);
 		}
 		System.out.println("Client: HTML File scanned for images.");
-		//	response = inFromServer.readLine();
-		//	if (response.startsWith("<")) getWriter().setWriting(true);
-		//	System.out.println("Server: " + response);
-		//	response = scanHTMLLine(response);
-		//	getWriter().write(response);
-		//}
-		// Chunked not to be supported...
-		//if (isChunked()) {
-		//	while (!response.equals("")) {
-		//		response = inFromServer.readLine();
-		//		System.out.println("Server: " + response);
-		//	}
-		//}
-		getWriter().close();
-		for (String location: getImageLocs()) {
+
+		ArrayList<String> locations = new ArrayList<String>(getImageLocs());
+		for (String location: locations) {
+			getImageLocs().remove(location);
 			System.out.println("fetching image: " + "HTTPClient GET " +  getHost() + location + " " + getPort());
-			//executeCommand(getSocket(), new String[]{"HTTPClient", "GET", getHost() + location, "" + getPort()});
 			handleUserInput(getSocket(), "HTTPClient GET " + getHost() + location + " " + getPort());
 		}
 	}
 	
 	private void handleGetImageCommand(byte[] bytes) throws Exception {
-		//InputStreamReader isr = new InputStreamReader(is);
-		File file = new File("src/savedHTMLFiles/" + getHost() + getPath().substring(0, getPath().lastIndexOf("/")));
-		System.out.println("Client: image location is " + getPath());
+		File file = new File("src/savedHTMLFiles/" + getHost() + 
+				getPath().substring(0, getPath().lastIndexOf("/")));
 		file.mkdirs();
-		OutputStream os = new FileOutputStream("src/savedHTMLFiles/" + getHost() + getPath());
-		//byte[] image = new byte[getContentLength()];
-		//int count = 0;
-		//int curCount = 0;
-		
-		//while (count != getContentLength()) {
-		//	System.out.println("Count: " + count);
-		//	//System.out.println("curCount: " + curCount);
-		//	System.out.println(is.available());
-		//	curCount = is.read(image, count, getContentLength() - count);
-		//	//System.out.println(curCount);
-		//	count += curCount;
-		//}
-		
+		OutputStream os = new FileOutputStream("src/savedHTMLFiles/" + getHost() + getPath());	
 		os.write(bytes);
-		//System.out.println(image);
-
-		//os.write(image);
 		os.close();
-		//is.close();
+		System.out.println("Client: Image fetched.");
 	}
 	
 	/**
@@ -384,7 +362,7 @@ public class Client implements Runnable{
 	 */
 	private String checkStatusCode(BufferedReader br) throws Exception{
 		String response;
-		System.out.println("Checking status code.");
+		//System.out.println("Checking status code.");
 		if ((response = br.readLine()).split(" ")[1].charAt(0) == '3') {
 			System.out.println("Server: " + response);
 			while (!response.startsWith("Location:")) {
@@ -394,8 +372,31 @@ public class Client implements Runnable{
 			return response.split(" ")[1];
 		}
 		System.out.println("Server: " + response);
-		System.out.println("Done checking status code.");
+		//System.out.println("Done checking status code.");
 		return null;
+	}
+
+	/**
+	 * Used for retrieving information from headers.
+	 * @param inFromServer
+	 * @throws Exception
+	 */
+	private void checkHeaders(BufferedReader br) throws Exception {
+		String response;
+		while (!(response = br.readLine()).equals("")) {
+			if (response.startsWith("Content-Type:")) {
+				setContentType(response.split(" ")[1].split(";")[0]);
+			}
+			if (response.startsWith("Transfer-Encoding: chunked")) {
+				setChunked(true);
+			}
+			if (response.startsWith("Content-Length:")) {
+				setContentLength(Integer.parseInt(response.split(" ")[1]));
+			}
+			System.out.println("Server: " + response);
+		}
+		System.out.println("Server: " + response);
+		//System.out.println("Headers checked.");
 	}
 
 	/**
@@ -454,8 +455,42 @@ public class Client implements Runnable{
 	public String requestInput() throws Exception {
 		System.out.println("Client: Please enter your command.");
 		return inFromUser.readLine();
+		//return inFromUser.rea();
 	}
 	
+	public void readFromUser(String s) throws IOException {
+		String[] input = parseUserInput(s);
+		/*System.out.println("GIEF INPUT");
+		byte[] bytes = new byte[1024];
+		byte[] headers = new byte[1];
+		byte[] file = new byte[1];
+		int count = is.read(bytes);
+
+		boolean end = false;
+		int i = 0;
+		while (!end) {
+			if (bytes[i] == 13 && bytes[i + 1] == 10 && bytes[i + 2] == 13 && bytes[i+3] == 10) {
+				headers = Arrays.copyOfRange(bytes, 0, i + 4);
+				file = Arrays.copyOfRange(bytes, i + 4, count);
+				end = true;
+			}
+			i++;
+		}
+		setUserHeaders(headers);
+		setUserFile(file);*/
+	}
+		
+	
+	private void setUserFile(String inputString) {
+		// TODO Auto-generated method stub
+		this.userFile = inputString;
+	}
+
+	private void setUserHeaders(String inputString) {
+		// TODO Auto-generated method stub
+		this.userHeaders = inputString;
+	}
+
 	/**
 	 * Return a String containing the path of the given URI.
 	 * @param 	uri
@@ -472,12 +507,8 @@ public class Client implements Runnable{
 		return uri.substring(uri.indexOf('/'));
 	}
 	
-	public void setHost(String uri) {
-		try {
+	public void setHost(String uri) throws Exception{
 			this.host = getHost(uri);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
 	}
 	
 	public String getHost() {
@@ -525,21 +556,23 @@ public class Client implements Runnable{
 	public void scanHTMLLine(String line) {
 		while (line.contains("<img") || line.contains("<IMG")) {
 			if (line.contains("src=\"")) {
-			//System.out.println("Client: image detected");
-			System.out.println(line);
-			System.out.println(line.split("src=\"")[1].split("\"")[0]);
-			this.foundImageLocations.add("/" + line.split("src=\"")[1].split("\"")[0]);
+			System.out.println("Client: image detected");
+			//System.out.println(line);
+			System.out.println("Client: Location = " + line.split("src=\"")[1].split("\"")[0]);
+			this.foundImages.add("/" + line.split("src=\"")[1].split("\"")[0]);
 			if (line.contains("lowsrc=\"")) {
-				System.out.println(line.split("lowsrc=\"")[1].split("\"")[0]);
-				this.foundImageLocations.add("/" + line.split("lowsrc=\"")[1].split("\"")[0]);
+				//System.out.println(line.split("lowsrc=\"")[1].split("\"")[0]);
+				System.out.println("Client: image detected");
+				System.out.println("Client: Location = " + line.split("lowsrc=\"")[1].split("\"")[0]);
+				this.foundImages.add("/" + line.split("lowsrc=\"")[1].split("\"")[0]);
 				line = line.substring(line.indexOf("lowsrc=\"") + 5);
 			}
 			else {line = line.substring(line.indexOf("src=\"") + 5);}
 			} else if (line.contains("SRC=\"")) {
-				System.out.println("Client: image detected");
-				System.out.println(line.split("SRC=\"")[1].split("\"")[0]);
-				line = line.substring(line.indexOf("SRC=\"") + 5);
+				//System.out.println("Client: image detected");
+				//System.out.println(line.split("SRC=\"")[1].split("\"")[0]);
 				//this.foundImageLocations.add("/" + line.split("SRC=\"")[1].split("\"")[0]);
+				line = line.substring(line.indexOf("SRC=\"") + 5);
 			}
 
 

@@ -27,7 +27,7 @@ public class HTMLWriter {
 	}
 
 	private void setPWriter(String fileName) {
-		System.out.println(fileName);
+		//System.out.println(fileName);
 
 		try {
 			File file;
